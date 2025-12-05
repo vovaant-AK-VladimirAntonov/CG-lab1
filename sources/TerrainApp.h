@@ -5,6 +5,7 @@
 #include "Camera.h"
 #include "UploadBuffer.h"
 #include "MathHelper.h"
+#include "QuadTree.h"
 #include <DirectXCollision.h>
 
 // Vertex structure for terrain patches
@@ -98,6 +99,9 @@ private:
 
     std::vector<TerrainTileInfo> mTiles;
     std::vector<TerrainTileInfo*> mVisibleTiles;
+    
+    // Quadtree for LOD
+    QuadTree mQuadTree;
 
     // Textures
     std::vector<std::unique_ptr<Texture>> mTextures;

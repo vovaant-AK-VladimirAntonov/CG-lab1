@@ -49,6 +49,16 @@ bool TerrainApp::Initialize()
     // Create constant buffer
     mPassCB = std::make_unique<UploadBuffer<PassConstants>>(md3dDevice.Get(), 1, true);
 
+    // Initialize Quadtree for LOD
+    // LOD distances: LOD0 < 200, LOD1 < 500, LOD2 < 1000, LOD3 >= 1000
+    std::vector<float> lodDistances = { 200.0f, 500.0f, 1000.0f };
+    float terrainSize = (float)(TilesX * TileSize); // 2048
+    int maxDepth = 4; // 4 levels of subdivision
+    mQuadTree.Initialize(terrainSize, maxDepth, lodDistances);
+    
+    OutputDebugStringA(("QuadTree initialized: size=" + std::to_string(terrainSize) + 
+                        ", maxDepth=" + std::to_string(maxDepth) + "\n").c_str());
+
     return true;
 }
 
@@ -549,29 +559,90 @@ void TerrainApp::UpdateVisibleTiles()
 {
     mVisibleTiles.clear();
 
-    // Temporarily disable frustum culling to debug - show all tiles
-    for (auto& tile : mTiles)
+    // Get camera position and frustum
+    XMFLOAT3 cameraPos = mCamera.GetPosition();
+    BoundingFrustum frustum = GetFrustum();
+    
+    // Update Quadtree - this performs frustum culling and LOD selection
+    mQuadTree.Update(cameraPos, frustum);
+    
+    // Get visible nodes from Quadtree
+    const auto& visibleNodes = mQuadTree.GetVisibleNodes();
+    
+    // Map Quadtree nodes to terrain tiles
+    // Each Quadtree leaf node corresponds to a region of the terrain
+    for (const auto& renderNode : visibleNodes)
     {
-        mVisibleTiles.push_back(&tile);
+        QuadTreeNode* node = renderNode.Node;
+        
+        // Find which tile(s) this node overlaps with
+        float nodeMinX = node->Center.x - node->Size * 0.5f;
+        float nodeMinZ = node->Center.z - node->Size * 0.5f;
+        float nodeMaxX = node->Center.x + node->Size * 0.5f;
+        float nodeMaxZ = node->Center.z + node->Size * 0.5f;
+        
+        for (auto& tile : mTiles)
+        {
+            float tileMinX = (float)(tile.TileX * tile.TileSize);
+            float tileMinZ = (float)(tile.TileY * tile.TileSize);
+            float tileMaxX = tileMinX + tile.TileSize;
+            float tileMaxZ = tileMinZ + tile.TileSize;
+            
+            // Check if node overlaps with tile
+            bool overlaps = !(nodeMaxX < tileMinX || nodeMinX > tileMaxX ||
+                             nodeMaxZ < tileMinZ || nodeMinZ > tileMaxZ);
+            
+            if (overlaps)
+            {
+                // Avoid duplicates
+                bool alreadyAdded = false;
+                for (auto* t : mVisibleTiles)
+                {
+                    if (t == &tile)
+                    {
+                        alreadyAdded = true;
+                        break;
+                    }
+                }
+                if (!alreadyAdded)
+                {
+                    mVisibleTiles.push_back(&tile);
+                }
+            }
+        }
     }
 
     // Debug output
     static int frameCount = 0;
-    if (frameCount++ % 60 == 0)
+    if (frameCount++ % 120 == 0)
     {
-        OutputDebugStringA(("Visible tiles: " + std::to_string(mVisibleTiles.size()) + "\n").c_str());
+        OutputDebugStringA(("QuadTree nodes: " + std::to_string(visibleNodes.size()) + 
+                           ", Visible tiles: " + std::to_string(mVisibleTiles.size()) + "\n").c_str());
+        
+        // Show LOD distribution
+        int lodCounts[4] = {0, 0, 0, 0};
+        for (const auto& rn : visibleNodes)
+        {
+            lodCounts[static_cast<int>(rn.LOD)]++;
+        }
+        OutputDebugStringA(("LOD distribution: LOD0=" + std::to_string(lodCounts[0]) +
+                           " LOD1=" + std::to_string(lodCounts[1]) +
+                           " LOD2=" + std::to_string(lodCounts[2]) +
+                           " LOD3=" + std::to_string(lodCounts[3]) + "\n").c_str());
     }
 }
 
 BoundingFrustum TerrainApp::GetFrustum() const
 {
-    XMMATRIX proj = mCamera.GetProjectionMatrix();
+    // Camera matrices are stored transposed (row-major for HLSL)
+    // Need to transpose back for BoundingFrustum which expects column-major
+    XMMATRIX proj = XMMatrixTranspose(mCamera.GetProjectionMatrix());
 
     // Create frustum from projection matrix
     BoundingFrustum frustum(proj);
 
     // Transform frustum to world space using inverse view matrix
-    XMMATRIX view = mCamera.GetViewMatrix();
+    XMMATRIX view = XMMatrixTranspose(mCamera.GetViewMatrix());
     XMMATRIX invView = XMMatrixInverse(nullptr, view);
     frustum.Transform(frustum, invView);
 

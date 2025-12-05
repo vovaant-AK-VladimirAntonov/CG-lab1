@@ -16,8 +16,8 @@ cbuffer PassConstants : register(b0)
   float gPadding2;
 };
 
-static float gMinDist = 20;
-static float gMaxDist = 500;
+static float gMinDist = 100;
+static float gMaxDist = 1000;
 
 static float gMinTess = 1;
 static float gMaxTess = 6;
