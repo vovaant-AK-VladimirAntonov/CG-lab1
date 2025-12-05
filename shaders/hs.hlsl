@@ -16,18 +16,24 @@ cbuffer PassConstants : register(b0)
   float gPadding2;
 };
 
-static float gMinDist = 100;
-static float gMaxDist = 1000;
+// LOD параметры - настрой под свои нужды
+static float gMinDist = 500;     // До этого расстояния - максимальная детализация
+static float gMaxDist = 2500;    // После этого - минимальная детализация (быстрый переход)
 
-static float gMinTess = 1;
-static float gMaxTess = 6;
+static float gMinTess = 1;      // Минимальная тесселяция (1 сегмент = 2 треугольника на патч)
+static float gMaxTess = 6;      // Максимальная тесселяция (64 сегмента)
 
 float CalcTessFactor(float3 p)
 {
   float d = distance(p, gEyePosW);
   float s = saturate((d - gMinDist) / (gMaxDist - gMinDist));
 
-  return pow(2, (lerp(gMaxTess, gMinTess, s)));
+  // Lerp between max and min tessellation based on distance
+  // Close = high tess (64), Far = low tess (1)
+  float tess = pow(2, lerp(gMaxTess, gMinTess, s));
+  
+  // Minimum tessellation is 1
+  return max(1.0f, tess);
 }
 
 PatchTess ConstantHS(InputPatch<HullIn, 4> patch, uint patchID : SV_PrimitiveID)
@@ -41,24 +47,11 @@ PatchTess ConstantHS(InputPatch<HullIn, 4> patch, uint patchID : SV_PrimitiveID)
   float3 e3 = 0.5f * (patch[2].positionWorld + patch[3].positionWorld); // Top
   float3 c = 0.25f * (patch[0].positionWorld + patch[1].positionWorld + patch[2].positionWorld + patch[3].positionWorld);
 
-  // Check if patch is on tile boundary (every 512 units)
-  bool onBoundary = (fmod(patch[0].positionWorld.x, 512.0f) < 1.0f) || 
-                    (fmod(patch[0].positionWorld.z, 512.0f) < 1.0f) ||
-                    (fmod(patch[3].positionWorld.x, 512.0f) < 1.0f) || 
-                    (fmod(patch[3].positionWorld.z, 512.0f) < 1.0f);
-
-  float baseTess0 = CalcTessFactor(e0);
-  float baseTess1 = CalcTessFactor(e1);
-  float baseTess2 = CalcTessFactor(e2);
-  float baseTess3 = CalcTessFactor(e3);
-
-  // Increase tessellation on boundaries to hide seams
-  float boundaryMultiplier = onBoundary ? 2.0f : 1.0f;
-
-  pt.edgeTess[0] = baseTess0 * boundaryMultiplier;
-  pt.edgeTess[1] = baseTess1 * boundaryMultiplier;
-  pt.edgeTess[2] = baseTess2 * boundaryMultiplier;
-  pt.edgeTess[3] = baseTess3 * boundaryMultiplier;
+  // Calculate tessellation for each edge
+  pt.edgeTess[0] = CalcTessFactor(e0);
+  pt.edgeTess[1] = CalcTessFactor(e1);
+  pt.edgeTess[2] = CalcTessFactor(e2);
+  pt.edgeTess[3] = CalcTessFactor(e3);
 
   pt.insideTess[0] = CalcTessFactor(c);
   pt.insideTess[1] = pt.insideTess[0];

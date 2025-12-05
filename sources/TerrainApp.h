@@ -121,4 +121,7 @@ private:
     static const int TilesY = 4;
     static const int TileSize = 512;
     static const int PatchesPerTile = 16;
+    
+    // Wireframe mode toggle
+    bool mWireframeMode = false;
 };
