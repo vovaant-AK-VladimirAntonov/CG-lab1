@@ -24,6 +24,10 @@ public:
   void TurnRight();
   void TurnUp();
   void TurnDown();
+  
+  // Rotation with custom angle (in degrees)
+  void RotateYaw(float degrees);
+  void RotatePitch(float degrees);
 
   const DirectX::XMMATRIX GetViewMatrix() const { return XMLoadFloat4x4(&m_viewMatrix); }
   const DirectX::XMMATRIX GetProjectionMatrix() const { return XMLoadFloat4x4(&m_projectionMatrix); }

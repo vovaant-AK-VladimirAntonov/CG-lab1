@@ -155,6 +155,28 @@ void Camera::TurnDown()
   UpdateViewMatrix();
 }
 
+void Camera::RotateYaw(float degrees)
+{
+  m_rotation.y += degrees;
+  
+  // Keep the rotation in the 0 to 360 range.
+  while (m_rotation.y < 0.0f) m_rotation.y += 360.0f;
+  while (m_rotation.y >= 360.0f) m_rotation.y -= 360.0f;
+  
+  UpdateViewMatrix();
+}
+
+void Camera::RotatePitch(float degrees)
+{
+  m_rotation.x += degrees;
+  
+  // Clamp pitch to avoid flipping (-89 to 89 degrees)
+  if (m_rotation.x > 89.0f) m_rotation.x = 89.0f;
+  if (m_rotation.x < -89.0f) m_rotation.x = -89.0f;
+  
+  UpdateViewMatrix();
+}
+
 void Camera::UpdateViewMatrix()
 {
   float pitch = XMConvertToRadians(m_rotation.x);

@@ -1,6 +1,8 @@
 #include "TerrainApp.h"
 #include "DDSTextureLoader.h"
 #include <sstream>
+#include <ctime>
+#include <cstdlib>
 
 using namespace DirectX;
 using Microsoft::WRL::ComPtr;
@@ -11,6 +13,12 @@ TerrainApp::TerrainApp(HINSTANCE hInstance)
     : D3DApp(hInstance)
 {
     mMainWndCaption = L"Terrain DX12";
+    
+    // Generate random seed for terrain (different terrain each run)
+    srand((unsigned int)time(nullptr));
+    mNoiseSeed = (float)(rand() % 10000);
+    
+    OutputDebugStringA(("=== TERRAIN SEED: " + std::to_string((int)mNoiseSeed) + " ===\n").c_str());
 }
 
 TerrainApp::~TerrainApp()
@@ -50,8 +58,7 @@ bool TerrainApp::Initialize()
     mPassCB = std::make_unique<UploadBuffer<PassConstants>>(md3dDevice.Get(), 1, true);
 
     // Initialize Quadtree for LOD
-    // LOD distances: LOD0 < 200, LOD1 < 500, LOD2 < 1000, LOD3 >= 1000
-    std::vector<float> lodDistances = { 200.0f, 500.0f, 1000.0f };
+    std::vector<float> lodDistances = { 500.0f, 1500.0f, 2500.0f };
     float terrainSize = (float)(TilesX * TileSize); // 2048
     int maxDepth = 4; // 4 levels of subdivision
     mQuadTree.Initialize(terrainSize, maxDepth, lodDistances);
@@ -178,20 +185,12 @@ void TerrainApp::OnMouseMove(WPARAM btnState, int x, int y)
     if ((btnState & MK_LBUTTON) != 0)
     {
         // Rotate camera with left mouse button
-        float dx = XMConvertToRadians(0.25f * static_cast<float>(x - mLastMousePos.x));
-        float dy = XMConvertToRadians(0.25f * static_cast<float>(y - mLastMousePos.y));
+        float dx = 0.15f * static_cast<float>(x - mLastMousePos.x);
+        float dy = 0.15f * static_cast<float>(y - mLastMousePos.y);
 
-        // Update camera rotation
-        for (int i = 0; i < abs((int)(dx * 50)); i++)
-        {
-            if (dx > 0) mCamera.TurnRight();
-            else mCamera.TurnLeft();
-        }
-        for (int i = 0; i < abs((int)(dy * 50)); i++)
-        {
-            if (dy > 0) mCamera.TurnDown();
-            else mCamera.TurnUp();
-        }
+        // Smooth camera rotation
+        mCamera.RotateYaw(dx);
+        mCamera.RotatePitch(dy);
     }
 
     mLastMousePos.x = x;
@@ -225,6 +224,11 @@ void TerrainApp::OnKeyPressed(const GameTimer& gt, WPARAM key)
         break;
     case 'F':
         mCamera.TurnDown();
+        break;
+    case 'C':
+        // Generate new random seed for different terrain
+        mNoiseSeed = (float)(rand() % 10000);
+        OutputDebugStringA(("=== NEW TERRAIN SEED: " + std::to_string((int)mNoiseSeed) + " ===\n").c_str());
         break;
     }
 }
@@ -551,6 +555,7 @@ void TerrainApp::UpdatePassCB(const GameTimer& gt)
     passConstants.TotalTime = gt.TotalTime();
     passConstants.DeltaTime = gt.DeltaTime();
     passConstants.HeightScale = 500.0f;
+    passConstants.NoiseSeed = mNoiseSeed;
 
     mPassCB->CopyData(0, passConstants);
 }

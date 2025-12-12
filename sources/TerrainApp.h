@@ -30,7 +30,7 @@ struct PassConstants
     float TotalTime = 0.0f;
     float DeltaTime = 0.0f;
     float HeightScale = 500.0f;
-    float Padding2;
+    float NoiseSeed; // Random seed for terrain generation
 };
 
 // Terrain tile info
@@ -124,4 +124,7 @@ private:
     
     // Wireframe mode toggle
     bool mWireframeMode = false;
+    
+    // Random seed for terrain generation (different each run)
+    float mNoiseSeed = 0.0f;
 };
